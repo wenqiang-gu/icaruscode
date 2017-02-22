@@ -46,14 +46,13 @@ signalshapingservice_icarus:
     FilterFuncVecICWire:                 ["x","x","x"]
     FilterFuncVec:                 [0., 0., 0. ]
     UseCalibratedResponses:         "false"
-    FieldResponseFNameBase:         "fresponseICARUS"
+    FieldResponseFNameBase:         "t600_response"
     FieldResponseFVersion:          ["v0.0","v0.0","v0.0"]
     DefaultEField:                  0.5
     DefaultTemperature:             87.5
     TimeScaleParams:                [1.,1.,1.]
     StretchFullResponse:            "false"
-    FieldResponseHNameBase:         "fresp"
-
+    FieldResponseHNameBase:         "t600_response"
 
 }
 

@@ -1012,8 +1012,8 @@ std::cout << " after convolution " << std::endl;
 	   adcval = 0;
 
       adcvec[i] = (unsigned short)TMath::Nint(adcval);
-      if(adcval!=0)
-        std::cout << " sample " << i << " ADC " << adcval << std::endl;
+      //if(adcval!=0)
+        //std::cout << " sample " << i << " ADC " << adcval << std::endl;
     }// end loop over signal size
 
     // compress the adc vector using the desired compression scheme,
