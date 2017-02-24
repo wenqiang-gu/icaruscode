@@ -129,7 +129,7 @@ namespace detsim {
     //be made a fcl parameter but not likely to ever change
     const float adcsaturation = 4095;
 
-   // ::detinfo::ElecClock fClock; ///< TPC electronics clock
+    ::detinfo::ElecClock fClock; ///< TPC electronics clock
 
     TH1D* hTest[5] = {0, 0, 0, 0, 0};
 
@@ -405,6 +405,8 @@ namespace detsim {
     //std::vector<std::vector<std::vector<int> > > YZwireOverlap = sss->GetYZwireOverlap();
     bool YZresponse = sss->IsResponseYZDependent();
     bool datadrivenresponse = sss->IsdatadrivenResponse();
+    //bool YZresponse = false;
+    //bool datadrivenresponse = false;
     if(!YZresponse) {
       N_RESPONSES = sss->GetNActiveResponses();
       }
@@ -417,6 +419,7 @@ namespace detsim {
 
     //const size_t N_VIEWS = 3;
     bool IsUMisconfigured = sss->IsMisconfiguredUIncluded();
+    //bool IsUMisconfigured = false;
     const std::vector<std::vector<int> > MisconfiguredU = sss->GetMisconfiguredU();
     
     
@@ -478,7 +481,7 @@ namespace detsim {
     // scale ionization depending on plane, wire and YZ location 
       if(YZresponse){
       for(unsigned int chan = 0; chan < N_CHANNELS; chan++) {
-          std::cout << " looping on channel " << chan << std::endl;
+          //std::cout << " looping on channel " << chan << std::endl;
 	auto wid = geo->ChannelToWire(chan);
 	size_t view = (size_t)geo->View(chan);
 	
@@ -687,7 +690,7 @@ namespace detsim {
       if(!YZresponse) {
 
 	for(unsigned int chan = 0; chan < N_CHANNELS; chan++) {
-          std::cout << " looping on channel " << chan << std::endl;
+          //std::cout << " looping on channel " << chan << std::endl;
 	  auto wid = geo->ChannelToWire(chan);
 	  size_t view = (size_t)geo->View(chan);
 
@@ -730,7 +733,7 @@ namespace detsim {
 	      int wireChan = (int) chan;
 	      if(wireChan<0 || wireChan>= (int)N_CHANNELS) continue;
 	      if((size_t)geo->View(wireChan)!=view) continue;
-            std::cout << " filling response params chan " << wireChan << " index " << wireIndex << " charge " << charge << " rawdigit " << raw_digit_index << std::endl;
+           // std::cout << " filling response params chan " << wireChan << " index " << wireIndex << " charge " << charge << " rawdigit " << raw_digit_index << std::endl;
             responseParamsVec[wireChan][wireIndex].emplace_back(new ResponseParams(charge, raw_digit_index));
 	    } // loop over wires
 	  } // loop over tdcs
@@ -861,12 +864,10 @@ namespace detsim {
       double shapingTime = sss->GetShapingTime(0);
       double asicGain    = sss->GetASICGain(0);
       
-      //  double shapingTime=1.;
-     //       double asicGain=1.;
-      std::cout << "Sim params: " << chan << " " << shapingTime << " " << asicGain << std::endl;
+      // std::cout << "Sim params: " << chan << " " << shapingTime << " " << asicGain << std::endl;
       if (fShapingTimeOrder.find( shapingTime ) != fShapingTimeOrder.end() ) {
         noise_factor  = tempNoiseVec[view].at( fShapingTimeOrder.find( shapingTime )->second );
-        noise_factor *= asicGain/4.7;
+        noise_factor *= asicGain/6.5;
           
       }
       else {//Throw exception...
@@ -932,16 +933,18 @@ namespace detsim {
           if(charge==0) continue;
 	  auto raw_digit_index = item->getTime();
 	  if(raw_digit_index > 0 && raw_digit_index < fNTicks) {
-          std::cout << " before convolution " << raw_digit_index << " charge " << charge << std::endl;
+          //std::cout << " before convolution " << raw_digit_index << " charge " << charge << std::endl;
             tempWork.at(raw_digit_index) += charge;
 	  }
         }
           
         // now we have the tempWork for the adjacent wire of interest
         // convolve it with the appropriate response function
-	sss->Convolute(chan, fabs(wire), tempWork);
-std::cout << " after convolution " << std::endl;
-	// this is to generate some plots
+	      sss->Convolute(chan, fabs(wire), tempWork);
+
+        //std::cout << " after convolution " << std::endl;
+	      
+        // this is to generate some plots
         if(view==1 && wireNum==360 && fSample>=0) {
           if(abs(wire)>2) continue;
           size_t index = wire + 2;
@@ -982,7 +985,8 @@ std::cout << " after convolution " << std::endl;
       // is still there, although unused; a copy of adcvec will instead have
       // only 5000 items. All 9600 items of adcvec will be recovered for free
       // and used on the next loop.
-        std::cout << " channel " << chan << std::endl;
+        
+      //std::cout << " channel " << chan << std::endl;
       MakeADCVec(adcvec, noisetmp, chargeWork, ped_mean);
       raw::RawDigit rd(chan, fNTimeSamples, adcvec, fCompression);
       rd.SetPedestal(ped_mean);
@@ -1028,8 +1032,8 @@ std::cout << " after convolution " << std::endl;
   {
     //ART random number service
     art::ServiceHandle<art::RandomNumberGenerator> rng;
-   //CLHEP::HepRandomEngine &engine = rng->getEngine("noise");
-   // CLHEP::RandGaussQ rGauss(engine, 0.0, noise_factor);
+   CLHEP::HepRandomEngine &engine = rng->getEngine("noise");
+   CLHEP::RandGaussQ rGauss(engine, 0.0, noise_factor);
 
     //In this case noise_factor is a value in ADC counts
     //It is going to be the Noise RMS
@@ -1044,8 +1048,8 @@ std::cout << " after convolution " << std::endl;
   void SimWireICARUS::GenNoiseInFreq(std::vector<float> &noise, double noise_factor) const
   {
     art::ServiceHandle<art::RandomNumberGenerator> rng;
-   // CLHEP::HepRandomEngine &engine = rng->getEngine("noise");
-    //CLHEP::RandFlat flat(engine,-1,1);
+    CLHEP::HepRandomEngine &engine = rng->getEngine("noise");
+    CLHEP::RandFlat flat(engine,-1,1);
 
     if(noise.size() != fNTicks)
       throw cet::exception("SimWireICARUS")
@@ -1154,7 +1158,7 @@ std::cout << " after convolution " << std::endl;
         
         for(int i = 0; i < nbinc; ++i){
             fColFieldResponse[i] *= fColFieldRespAmp/integral;
-            std::cout << " coll field response after renormalization " << i << " " << fColFieldResponse[i] << std::endl;
+           // std::cout << " coll field response after renormalization " << i << " " << fColFieldResponse[i] << std::endl;
             fColFieldResp->Fill(i, fColFieldResponse[i]);
         }
         
@@ -1167,7 +1171,7 @@ std::cout << " after convolution " << std::endl;
             
             fInd2FieldResp->Fill(i, fInd2FieldResponse[i]);
             fInd2FieldResp->Fill(nbini+i, fInd2FieldResponse[nbini+i]);
-            std::cout << " filling ind field response " << i << " " << nbini+i << std::endl;
+           // std::cout << " filling ind field response " << i << " " << nbini+i << std::endl;
         }
         for(int i = 0; i < nbini; ++i){
             fInd1FieldResponse[i] = 0;

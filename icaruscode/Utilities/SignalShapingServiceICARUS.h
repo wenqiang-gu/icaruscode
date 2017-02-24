@@ -124,7 +124,7 @@ namespace util {
         std::vector<std::vector<size_t> > GetNYZActiveResponses() { return fNYZActiveResponses; }
         std::vector<std::vector<size_t> > GetNdatadrivenActiveResponses() { return fNdatadrivenActiveResponses; }
         std::vector<std::vector<double> > GetYZchargeScaling()  { return fYZchargeScaling; }
-        //std::vector<std::vector<std::vector<int> > > GetYZwireOverlap() { return fYZwireOverlap; }
+        std::vector<std::vector<std::vector<int> > > GetYZwireOverlap() { return fYZwireOverlap; }
         std::vector<std::vector<int> > GetMisconfiguredU()      { return fMisconfiguredU; }
         
         
@@ -228,7 +228,7 @@ namespace util {
         std::vector<std::vector<size_t> > fNdatadrivenActiveResponses;
         
         std::vector<std::vector<double> > fYZchargeScaling;
-        //std::vector<std::vector<std::vector<int> > > fYZwireOverlap;
+        std::vector<std::vector<std::vector<int> > > fYZwireOverlap;
         std::vector<std::vector<int> > fMisconfiguredU;
         
         bool fYZdependentResponse;
