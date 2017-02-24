@@ -132,6 +132,7 @@ void util::SignalShapingServiceICARUS::reconfigure(const fhicl::ParameterSet& ps
     }
     std::cout << " before reading fhicl " << std::endl;
     fASICGainInMVPerFC    = pset.get< DoubleVec2 >("ASICGainInMVPerFC");
+    fReferenceASICGain   = pset.get<double>("ReferenceASICGain");
     
     fNPlanes = geo->Nplanes();
     fNViews  = pset.get<size_t>("NViews");
@@ -1185,7 +1186,7 @@ void util::SignalShapingServiceICARUS::SetElectResponse(size_t ktype,double shap
         element *= gain / 6.5 ;
         
        element *= fADCPerPCAtLowestASICGain * 1.60217657e-7;
-       // element *= gain / 4.7;
+       // element *= gain / fReferenceASICGain;
         
         
         if(element > last_max) last_max = element;
@@ -1653,7 +1654,7 @@ double util::SignalShapingServiceICARUS::GetRawNoise(unsigned int const channel)
     auto tempNoise = fNoiseFactVec.at(plane);
     rawNoise = tempNoise.at(temp);
     
-    rawNoise *= gain/4.7;
+    rawNoise *= gain/fReferenceASICGain;
     return rawNoise;
 }
 
@@ -1694,7 +1695,7 @@ double util::SignalShapingServiceICARUS::GetDeconNoise(unsigned int const channe
     auto tempNoise = fNoiseFactVec.at(plane);
     double deconNoise = tempNoise.at(temp);
     
-    deconNoise = deconNoise /4096.*2000./4.7 *6.241*1000/fDeconNorm;
+    deconNoise = deconNoise /4096.*2000./fReferenceASICGain *6.241*1000/fDeconNorm;
     return deconNoise;
 }
 

@@ -236,6 +236,7 @@ namespace util {
         bool fIncludeMisconfiguredU;
         
         DoubleVec2 fASICGainInMVPerFC;       ///< Cold electronics ASIC gain setting in mV/fC
+        double ReferenceASICGain;         ///< Normalizing gain for field responses
         
         DoubleVec fDefaultDriftVelocity;  ///< Default drift velocity of electrons in cm/usec
         DoubleVec2  fFieldResponseTOffset;  ///< Time offset for field response in ns
