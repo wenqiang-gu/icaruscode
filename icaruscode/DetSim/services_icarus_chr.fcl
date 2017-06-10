@@ -397,7 +397,7 @@ icarus_basic_services:
   TFileService: { fileName: "larg4_hist_icarus.root" }
 
   TimeTracker:  {}
-  MemoryTracker:     { ignoreTotal: 1 } # default is one
+  MemoryTracker:     { } # default is one
 
   RandomNumberGenerator: {} #ART native random number generator
   #FileCatalogMetadata:  @local::art_file_catalog_mc
