@@ -72,9 +72,9 @@ using namespace util;
 namespace detsim {
 
   // Base class for creation of raw signals on wires.
-  class SimWireICARUS : public art::EDProducer {
+class SimWireICARUS : public art::EDProducer {
 
-  public:
+public:
 
     explicit SimWireICARUS(fhicl::ParameterSet const& pset);
     virtual ~SimWireICARUS();
@@ -85,7 +85,7 @@ namespace detsim {
     void endJob();
     void reconfigure(fhicl::ParameterSet const& p);
 
-  private:
+private:
 
     void MakeADCVec(std::vector<short>& adc, std::vector<float> const& noise,
                     std::vector<double> const& charge, float ped_mean) const;
@@ -112,6 +112,10 @@ namespace detsim {
     std::vector<double> fTestCharge;
 
     int         fSample; // for histograms, -1 means no histos
+      
+    TH1F* fSimCharge;
+    TH2F* fSimChargeWire;
+
 
     //define max ADC value - if one wishes this can
     //be made a fcl parameter but not likely to ever change
@@ -120,25 +124,20 @@ namespace detsim {
     // little helper class to hold the params of each charge dep
     class ResponseParams {
     public:
-      ResponseParams(double charge, size_t time) : m_charge(charge), m_time(time) {}
-      double getCharge() { return m_charge; }
-      size_t getTime()   { return m_time; }
+        ResponseParams(double charge, size_t time) : m_charge(charge), m_time(time) {}
+        double getCharge() { return m_charge; }
+        size_t getTime()   { return m_time; }
     private:
-      double m_charge;
-      size_t m_time;
+        double m_charge;
+        size_t m_time;
     };
       
     //services
     const geo::GeometryCore& fGeometry;
+    
+}; // class SimWireICARUS
 
-  }; // class SimWireICARUS
-
-  /*  namespace {
-    size_t _ch = 0;
-    size_t _wr = 0;
-  }
-  */
-  DEFINE_ART_MODULE(SimWireICARUS)
+DEFINE_ART_MODULE(SimWireICARUS)
 
 //-------------------------------------------------
 SimWireICARUS::SimWireICARUS(fhicl::ParameterSet const& pset)
@@ -226,6 +225,10 @@ SimWireICARUS::~SimWireICARUS() {}
              }
          }
      }
+     
+     fSimCharge     = tfs->make<TH1F>("fSimCharge", "simulated charge", 150, 0, 1500);
+     fSimChargeWire = tfs->make<TH2F>("fSimChargeWire", "simulated charge", 5600,0.,5600.,500, 0, 1500);
+ 
      return;
 }
 
@@ -266,9 +269,6 @@ void SimWireICARUS::produce(art::Event& evt)
       mf::LogError("SimWireICARUS") << "Cannot have number of readout samples "
       << fNTimeSamples << " greater than FFTSize " << fNTicks << "!";
 
-    // TFileService
-    art::ServiceHandle<art::TFileService> tfs;
- 
     //TimeService
     art::ServiceHandle<detinfo::DetectorClocksServiceStandard> tss;
     // In case trigger simulation is run in the same job...
@@ -334,6 +334,7 @@ void SimWireICARUS::produce(art::Event& evt)
     //   this is needed because hits generate responses on adjacent wires!
     for(unsigned int channel = 0; channel < N_CHANNELS; channel++)
     {
+        double area=0;
         // get the sim::SimChannel for this channel
         // Look up first so we can suppress before doing any work if no signal
         const sim::SimChannel* sc = channels.at(channel);
@@ -346,12 +347,17 @@ void SimWireICARUS::produce(art::Event& evt)
 	
         //use channel number to set some useful numbers
         std::vector<geo::WireID> widVec = fGeometry.ChannelToWire(channel);
+
         size_t                   plane  = widVec[0].Plane;
-      
+//        size_t                   wire  = widVec[0].Wire;
+
         //Get pedestal with random gaussian variation
         CLHEP::RandGaussQ rGaussPed(engine, 0.0, pedestalRetrievalAlg.PedRms(channel));
-        float ped_mean = pedestalRetrievalAlg.PedMean(channel) + rGaussPed.fire();
-     
+//        float ped_mean = pedestalRetrievalAlg.PedMean(channel) + rGaussPed.fire();
+//******** do we want this change? taken out in the raw digit filter
+        float ped_mean = pedestalRetrievalAlg.PedMean(channel);
+        
+        
         //Generate Noise
         double noise_factor(0.);
         auto   tempNoiseVec = sss->GetNoiseFactVec();
@@ -374,12 +380,16 @@ void SimWireICARUS::produce(art::Event& evt)
         // Use the desired noise tool to actually generate the noise on this wire
         fNoiseToolVec[plane]->GenerateNoise(noisetmp, noise_factor);
         
+        double gain=sss->GetASICGain(channel);
+        
         // If there is something on this wire, and it is not dead, then add the signal to the wire
         if(sc && !(fSimDeadChannels && (ChannelStatusProvider.IsBad(channel) || !ChannelStatusProvider.IsPresent(channel))))
         {
             std::fill(chargeWork.begin(), chargeWork.end(), 0.);
         
             // loop over the tdcs and grab the number of electrons for each
+            double totCharge=0;
+            
             for(int tick = 0; tick < (int)fNTicks; tick++)
             {
                 int tdc = ts->TPCTick2TDC(tick);
@@ -391,9 +401,15 @@ void SimWireICARUS::produce(art::Event& evt)
                 
                 if(charge==0) continue;
             
-                chargeWork.at(tick) += charge;
+                //std::cout << " charge " << charge << std::endl;
+                //std::cout << " gain " << gain << std::endl;
+
+                chargeWork.at(tick) += charge/gain;
+                totCharge+=charge/gain;
+                if(chargeWork.at(tick)>0.001&&widVec[0].Wire==3333&&widVec[0].Plane==2)
+                std::cout << " tick " << tick << " chargework " << chargeWork.at(tick) << std::endl;
             } // loop over tdcs
-        
+
             // now we have the tempWork for the adjacent wire of interest
             // convolve it with the appropriate response function
             sss->Convolute(channel, chargeWork);
@@ -403,7 +419,7 @@ void SimWireICARUS::produce(art::Event& evt)
         }
         // "Make" an ADC vector with zero charge added
         else MakeADCVec(adcvec, noisetmp, zeroCharge, ped_mean);
-
+        
         // add this digit to the collection;
         // adcvec is copied, not moved: in case of compression, adcvec will show
         // less data: e.g. if the uncompressed adcvec has 9600 items, after
@@ -412,6 +428,19 @@ void SimWireICARUS::produce(art::Event& evt)
         // only 5000 items. All 9600 items of adcvec will be recovered for free
         // and used on the next loop.
         raw::RawDigit rd(channel, fNTimeSamples, adcvec, fCompression);
+        
+        if(plane==2)
+        {
+            for(int js=0;js<4096;js++)
+                area+=(adcvec[js]-400);
+            
+            if(area>0)
+            {
+                fSimCharge->Fill(area);
+                fSimChargeWire->Fill(widVec[0].Wire,area);
+            }
+        }
+        
         rd.SetPedestal(ped_mean);
         digcol->push_back(std::move(rd)); // we do move the raw digit copy, though
     }// end of 2nd loop over channels
@@ -426,10 +455,11 @@ void SimWireICARUS::produce(art::Event& evt)
 void SimWireICARUS::MakeADCVec(std::vector<short>& adcvec, std::vector<float> const& noisevec, 
                                    std::vector<double> const& chargevec, float ped_mean) const
 {
+    double chargeArea(0),ADCArea(0);
     for(unsigned int i = 0; i < fNTimeSamples; ++i)
     {
         float adcval = noisevec[i] + chargevec[i] + ped_mean;
-
+        //std::cout << " chargevec " << chargevec[i] << std::endl;
         //allow for ADC saturation
         if ( adcval > adcsaturation ) adcval = adcsaturation;
     
@@ -437,8 +467,11 @@ void SimWireICARUS::MakeADCVec(std::vector<short>& adcvec, std::vector<float> co
         if ( adcval < 0 ) adcval = 0;
 
         adcvec[i] = (unsigned short)TMath::Nint(adcval);
+        chargeArea+=chargevec[i];
+        ADCArea+=(adcvec[i]-ped_mean);
     }// end loop over signal size
 
+    //std::cout << " chargeArea" << chargeArea << " ADCArea " << ADCArea << " ratio " << ADCArea/chargeArea << std::endl;
     // compress the adc vector using the desired compression scheme,
     // if raw::kNone is selected nothing happens to adcvec
     // This shrinks adcvec, if fCompression is not kNone.

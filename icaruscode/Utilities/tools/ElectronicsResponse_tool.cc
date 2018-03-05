@@ -89,14 +89,6 @@ void ElectronicsResponse::setResponse(size_t numBins, double binWidth)
        double time = double(timeIdx) * binWidth;
         
         fElectronicsResponseVec.at(timeIdx) = time / fASICShapingTime * exp(-time / fASICShapingTime);
-        
-        if(fElectronicsResponseVec.at(timeIdx)>0.001)
-         std::cout << " timeIdx " << timeIdx << " time " << time << " response " << fElectronicsResponseVec.at(timeIdx) << std::endl;
-       // if(timeIdx==0)
-        //fElectronicsResponseVec.at(timeIdx) = 1./binWidth;
-        //else
-        //fElectronicsResponseVec.at(timeIdx) = 0;
-
     }
     
 //    double maxValue = *std::max_element(fElectronicsResponseVec.begin(),fElectronicsResponseVec.end());
@@ -115,15 +107,20 @@ void ElectronicsResponse::setResponse(size_t numBins, double binWidth)
     // From test pulse measurement with FLIC@CERN we have 0.027 fC/(ADC*us)
     // Therefore 0.027*6242 electrons/(ADC*us)
     
-    for (auto& element : fElectronicsResponseVec)
-        element /= (fFCperADCMicroS * 6242. * fASICShapingTime);
+   for (auto& element : fElectronicsResponseVec)
+       element /= (fASICShapingTime);
     
     float respIntegral=0;
     for(size_t timeIdx = 0; timeIdx < numBins; timeIdx++)
         respIntegral+=(fElectronicsResponseVec.at(timeIdx)*binWidth);
+
+    for (auto& element : fElectronicsResponseVec)
+        element /= respIntegral;
     
-    std::cout << " elec resp integral " << respIntegral << std::endl;
-    
+    respIntegral=0;
+    for(size_t timeIdx = 0; timeIdx < numBins; timeIdx++)
+        respIntegral+=(fElectronicsResponseVec.at(timeIdx)*binWidth);
+        
     return;
 }
     
