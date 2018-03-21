@@ -92,6 +92,17 @@ private:
     double TimeVector[10000];
     double ADCVector[10000];
 
+    double baseline;
+    double min_time_to_put;
+    double min_to_put;
+
+    double Area;
+    unsigned short frame;
+    double fasttotal;
+    double time_abs;
+    double FWHM;
+    double phelec;
+
 
 };
 
@@ -144,41 +155,43 @@ void OpHitFinderICARUS::produce(art::Event & e)
 	//TimeVector.size()= grsize;
 	//ADCVector.size()= grsize;
 
-    	for (int wtime=0; wtime< grsize; wtime++)
-      	{
-		TimeVector[wtime] = wtime;
-		ADCVector[wtime]  = wvf[wtime];
-      	}     
-
-    	float baseline=0;
+    	baseline=0;
 
     	for (int btime =0; btime< fBaselineSample; btime++)
       	{
-		baseline = baseline+ ADCVector[btime];
+		baseline = baseline+ wvf[btime];
       	}     
 
     	baseline = baseline/fBaselineSample;
 
-    	std::cout << "Baseline " << baseline << std::endl; 
+    	std::cout << "Baseline " << baseline << std::endl;
 
+
+    	for (int wtime=0; wtime< grsize; wtime++)
+      	{
+		TimeVector[wtime] = wtime;
+		ADCVector[wtime]  = -(wvf[wtime]-baseline);
+      	}      
 
     	TGraph *gr = new TGraph(grsize,TimeVector,ADCVector);
     
 //    	double min = std::min_element(WaveformVector.begin(), WaveformVector.end());
 //    	double min_time = distance(WaveformVector.begin(), find(WaveformVector.begin(), WaveformVector.end(), min));    
 
-    	int n_graph = gr->GetN(); // e` 600 ma lo faccio trovare lo stesso
+    	int n_graph = gr->GetN(); 
     	double *y_graph = gr->GetY();
 
     	int min_time = TMath::LocMax(n_graph,y_graph); 
-        double min_time_to_put = TMath::LocMax(n_graph,y_graph);    
+        min_time_to_put = TMath::LocMax(n_graph,y_graph);
+    
     	double min = y_graph[min_time];
+    	min_to_put = min;
 
     	std::cout << "Min " << min << std::endl; 
   
-	if (min>baseline+fHitThreshold)
+	if (min>fHitThreshold)
 	{
-    	TF1 *funz= new TF1("funz", "pol1(0)", min_time-4.0, min_time);
+    	TF1 *funz= new TF1("funz", "pol1(0)", min_time-2.0, min_time);
 
     	gr->Fit("funz","R");
 
@@ -186,8 +199,11 @@ void OpHitFinderICARUS::produce(art::Event & e)
 
     	std::cout << "Start " << start_moment << std::endl; 
 
-    	TF1 *gauss_start= new TF1("gauss_start", "gaus", 0, min_time);
-    	TF1 *gauss_end  = new TF1("gauss_end", "gaus", min_time, n_graph);
+    	TF1 *gauss_start= new TF1("gauss_start", "gaus", min_time-5.0, min_time);
+    	TF1 *gauss_end  = new TF1("gauss_end", "gaus", min_time, min_time+10);
+
+	gauss_start->SetParameter(1,min_time);
+	gauss_end->SetParameter(1,min_time);
 
 	gr->Fit("gauss_start","R");
 
@@ -195,26 +211,30 @@ void OpHitFinderICARUS::produce(art::Event & e)
 	//double Mean1 = gauss_start->GetParameter(1);
 	double Sigma1 = gauss_start->GetParameter(2);
 
+	std::cout << "GaussParam 00 " << gauss_start->GetParameter(0) << "GaussParam 01 " << gauss_start->GetParameter(1) << "GaussParam 02 " << gauss_start->GetParameter(2) << std::endl; 
+
 	gr->Fit("gauss_end","R");
    
 	double Constant2 = gauss_end->GetParameter(0);
 	//double Mean2 = gauss_end->GetParameter(1);
 	double Sigma2 = gauss_end->GetParameter(2);
 
-	double Area =  ((Constant1*Sigma1)/2 + (Constant2*Sigma2)/2)*sqrt(2*3.14159);
+	std::cout << "GaussParam 10 " << gauss_end->GetParameter(0) << "GaussParam 11 " << gauss_end->GetParameter(1) << "GaussParam 12 " << gauss_end->GetParameter(2) << std::endl; 
 
-	unsigned short frame = 1;
+	Area =  ((Constant1*Sigma1)/2 + (Constant2*Sigma2)/2)*sqrt(2*3.14159);
 
-	double fasttotal = 3/4;
+	frame = 1;
 
-	double time_abs = sqrt(min_time_to_put);
+	fasttotal = 3/4;
 
-	double FWHM = 2.35*((Sigma1+Sigma2)/2);
+	time_abs = sqrt(min_time_to_put);
 
-	double phelec= Area/fSPEArea;
+	FWHM = 2.35*((Sigma1+Sigma2)/2);
 
-	recob::OpHit adcVec(fChNumber, min_time_to_put, time_abs, frame, FWHM, Area, min, phelec, fasttotal);//including hit info
-	pulseVecPtr->emplace_back(std::move(adcVec));
+	phelec= Area/fSPEArea;
+
+//	recob::OpHit adcVec(fChNumber, min_time_to_put, time_abs, frame, FWHM, Area, min_to_put, phelec, fasttotal);//including hit info
+//	pulseVecPtr->emplace_back(std::move(adcVec));
 
 	funz->~TF1();
 	gauss_start->~TF1();
@@ -222,7 +242,24 @@ void OpHitFinderICARUS::produce(art::Event & e)
 	gr->~TGraph();
 
 	}
-	else {std::cout << "No OpHit in channel " << fChNumber << std::endl;}
+	else {
+
+	//std::cout << "No OpHit in channel " << fChNumber << std::endl;
+
+	min_time_to_put=0;
+	min_to_put=0;
+	Area=0;
+	frame=0;
+	fasttotal=0;
+	time_abs=0;
+	FWHM=0;
+	phelec=0;	
+
+	}
+
+    recob::OpHit adcVec(fChNumber, min_time_to_put, time_abs, frame, FWHM, Area, min_to_put, phelec, fasttotal);//including hit info
+    pulseVecPtr->emplace_back(std::move(adcVec));
+
     } 
 // Store results into the event
 e.put(std::move(pulseVecPtr));

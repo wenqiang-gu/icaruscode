@@ -58,6 +58,7 @@
 #include "nutools/ParticleNavigation/ParticleList.h"
 
 #include "lardataobj/Simulation/sim.h"
+#include "lardataobj/RecoBase/OpHit.h"
 
 // #####################
 // ### ROOT includes ###
@@ -133,6 +134,13 @@ float photon_time[nPMTs][MaxPhotons];
 
 float firstphoton_time[nPMTs];
 
+int nHit;
+double hit_peaktime[nPMTs];
+double hit_width[nPMTs];
+double hit_area[nPMTs];
+double hit_peak[nPMTs];
+double hit_phe[nPMTs];
+
 float true_barycentre_x;
 float true_barycentre_y;
 float true_barycentre_z;
@@ -154,7 +162,7 @@ float PMT_total_error;
 art::InputTag photonLabel;
 art::InputTag chargeLabel;
 art::InputTag typoLabel;
-
+art::InputTag hitLabel;
 
 };
 
@@ -164,7 +172,8 @@ icarus::TrigInfo::TrigInfo(fhicl::ParameterSet const & p)
   EDAnalyzer(p),
   photonLabel(p.get<art::InputTag>("fottoni", "largeant")),
   chargeLabel(p.get<art::InputTag>("carconi", "largeant")),
-  typoLabel  (p.get<art::InputTag>("tiponi", "generator"))
+  typoLabel  (p.get<art::InputTag>("tiponi", "generator")),
+  hitLabel   (p.get<art::InputTag>("hittoni", "ophit"))
  // More initializers here.
 {
 
@@ -180,6 +189,7 @@ art::ServiceHandle<geo::Geometry> geom;
  
 std::vector<sim::SimPhotons> const& optical  = *(evt.getValidHandle<std::vector<sim::SimPhotons>>(photonLabel));
 std::vector<sim::SimChannel> const& charge   = *(evt.getValidHandle<std::vector<sim::SimChannel>>(chargeLabel));
+std::vector<recob::OpHit> const& hit        = *(evt.getValidHandle<std::vector<recob::OpHit>>(hitLabel));
 //std::vector<simb::MCTruth> const& type    = *(evt.getValidHandle<std::vector<simb::MCTruth>>(typoLabel));
 
 ////////////////////////////////// Event number//////////////////////////////
@@ -355,8 +365,48 @@ PMT_error_y = reco_barycentre_y-true_barycentre_y;
 PMT_error_z = reco_barycentre_z-true_barycentre_z;
 PMT_total_error = sqrt((PMT_error_y*PMT_error_y)+(PMT_error_z*PMT_error_z));
 
+// optical hit part
+
+/*for (int u=0; u<360; u++)
+{
+hit_peaktime[u]=-1;
+hit_width[u]=-1;
+hit_area[u]=-1;
+hit_peak[u]=-1;
+hit_phe[u]=-1;
+}*/
+
+nHit = hit.size();
+
+std::cout << "Qua arriva prima del for" << std::endl;
+
+for (std::size_t hit_n = 0; hit_n < hit.size(); ++hit_n) {
+
+	recob::OpHit const& hit_vec = hit[hit_n];
+
+
+	std::cout << "apre il vettore numer = " << hit_n << std::endl;
+
+
+	noPMT[hit_n] = hit_vec.OpChannel();
+
+	std::cout << "del canale numer = " << noPMT[hit_n] << std::endl;
+
+	//int ifhit= noPMT[hit_n];
+
+	hit_peaktime[hit_n] = hit_vec.PeakTime();
+	hit_width[hit_n] = hit_vec.Width();
+	hit_area[hit_n] = hit_vec.Area();	
+	hit_peak[hit_n] = hit_vec.Amplitude(); 
+	hit_phe[hit_n] = hit_vec.PE();
+
+	std::cout << "di area uguale a  = " << hit_area[hit_n] << std::endl;
+	
+}
+
 fTree->Fill();
 }
+
 void icarus::TrigInfo::beginJob()
 {
 
@@ -368,18 +418,26 @@ fTree->Branch("event_type",&event_type,"event_type/I");
 fTree->Branch("is_Neutrino",&is_Neutrino,"is_Neutrino/I");
 fTree->Branch("Neutrino_Interaction",&Neutrino_Interaction,"Neutrino_Interaction/I");
 fTree->Branch("total_quenched_energy",&total_quenched_energy,"total_quenched_energy");
-fTree->Branch("Cryostat",&Cryostat,("Cryostat[" + std::to_string(nPMTs) + "]/I").c_str());
-fTree->Branch("TPC",&TPC,("TPC[" + std::to_string(nPMTs) + "]/I").c_str());
-fTree->Branch("noPMT",&noPMT,("noPMT[" + std::to_string(nPMTs) + "]/I").c_str());
-fTree->Branch("PMTx",&PMTx,("PMTx[" + std::to_string(nPMTs) + "]/D").c_str());
-fTree->Branch("PMTy",&PMTy,("PMTy[" + std::to_string(nPMTs) + "]/D").c_str());
-fTree->Branch("PMTz",&PMTz,("PMTz[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("Cryostat",Cryostat,("Cryostat[" + std::to_string(nPMTs) + "]/I").c_str());
+fTree->Branch("TPC",TPC,("TPC[" + std::to_string(nPMTs) + "]/I").c_str());
+fTree->Branch("noPMT",noPMT,("noPMT[" + std::to_string(nPMTs) + "]/I").c_str());
+fTree->Branch("PMTx",PMTx,("PMTx[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("PMTy",PMTy,("PMTy[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("PMTz",PMTz,("PMTz[" + std::to_string(nPMTs) + "]/D").c_str());
 fTree->Branch("turned_PMT",&turned_PMT,"turned_PMT/I");
 fTree->Branch("total_coll_photons",&total_coll_photons,"total_coll_photons/I");
-fTree->Branch("photons_colleted",&photons_collected,("photons_collected[" + std::to_string(nPMTs) + "]/F").c_str());
-fTree->Branch("QE_photons_colleted",&QE_photons_collected,("QE_photons_collected[" + std::to_string(nPMTs) + "]/F").c_str());
-fTree->Branch("firstphoton_time",&firstphoton_time,("firstphoton_time[" + std::to_string(nPMTs) + "]/F").c_str());
-fTree->Branch("photon_time",&photon_time,"photon_time[360][10000]/F");
+fTree->Branch("photons_colleted",photons_collected,("photons_collected[" + std::to_string(nPMTs) + "]/F").c_str());
+fTree->Branch("QE_photons_colleted",QE_photons_collected,("QE_photons_collected[" + std::to_string(nPMTs) + "]/F").c_str());
+fTree->Branch("firstphoton_time",firstphoton_time,("firstphoton_time[" + std::to_string(nPMTs) + "]/F").c_str());
+//fTree->Branch("photon_time",&photon_time,"photon_time[360][10000]/F");
+
+fTree->Branch("nHit",&nHit,"nHit/I");
+fTree->Branch("hit_peaktime",hit_peaktime,("hit_peaktime[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("hit_width",hit_width,("hit_width[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("hit_area",hit_area,("hit_area[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("hit_peak",hit_peak,("hit_peak[" + std::to_string(nPMTs) + "]/D").c_str());
+fTree->Branch("hit_phe",hit_phe,("hit_phe[" + std::to_string(nPMTs) + "]/D").c_str());
+
 fTree->Branch("vertex_x",&vertex_x,"vertex_x/D");
 fTree->Branch("vertex_y",&vertex_y,"vertex_y/D");
 fTree->Branch("vertex_z",&vertex_z,"vertex_z/D");
