@@ -287,7 +287,7 @@ raw::ChannelID_t ChannelMapIcarusAlg::PlaneWireToChannel
 
 
 //----------------------------------------------------------------------------
-SigType_t ChannelMapIcarusAlg::SignalType(raw::ChannelID_t const channel) const
+SigType_t ChannelMapIcarusAlg::SignalTypeForChannelImpl(raw::ChannelID_t const channel) const
 {
     unsigned int nChanPerCryo = fNchannels/fNcryostat;
     unsigned int cryostat = channel / nChanPerCryo;  
