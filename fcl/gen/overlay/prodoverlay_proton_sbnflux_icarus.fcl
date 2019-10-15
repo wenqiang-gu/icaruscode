@@ -92,3 +92,4 @@ outputs:
 # beam spill (84 * 19ns = 1596ns)
 physics.producers.generator.RandomTimeOffset: 1596. # [ns]
 
+physics.producers.generator.FiducialCut: "mbox: -368.2,-173.,-913.,368.2,143.,883."
