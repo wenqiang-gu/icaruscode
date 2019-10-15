@@ -94,15 +94,13 @@ outputs:
    compressionLevel: 1
    fastCloning: false
    SelectEvents: [simulate]
-   outputCommands: [
-     "keep *",
-     "drop *_larg4intime_*_CosmicsCorsikaCMCGenAndG4InTime"
-   ]
  }
 }
 
 #physics.producers.cosmgen.EnergyThreshold: 2.e-1
 physics.producers.cosmgen.SubBoxLength: "subboxLength 60 "
+services.LArG4Parameters.ParticleKineticEnergyCut: 0.0005
+physics.producers.larg4intime.KeepParticlesInVolumes: [ "volCryostat" ]
 
 # set Photon Visibility to mapped library (better memory usage)
 services.PhotonVisibilityService: @local::icarus_photonvisibilityservice_mapped  # from photpropservices_icarus.fcl
