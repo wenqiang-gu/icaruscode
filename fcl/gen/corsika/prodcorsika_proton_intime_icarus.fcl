@@ -100,7 +100,8 @@ outputs:
 #physics.producers.cosmgen.EnergyThreshold: 2.e-1
 physics.producers.cosmgen.SubBoxLength: "subboxLength 60 "
 services.LArG4Parameters.ParticleKineticEnergyCut: 0.0005
-physics.producers.larg4intime.KeepParticlesInVolumes: [ "volCryostat" ]
+physics.producers.larg4intime.KeepParticlesInVolumes: [ "volDetEnclosure" ]
+physics.producers.larg4intime.InputLabels: [ "GenInTimeSorter:intime" ]
 
 # set Photon Visibility to mapped library (better memory usage)
 services.PhotonVisibilityService: @local::icarus_photonvisibilityservice_mapped  # from photpropservices_icarus.fcl
