@@ -57,7 +57,9 @@ physics:
       TimeWindows: [ [-202, 1798] ] # ns
       MinPhotonEnergy: -1
       # 100 PE 
-      MinTotalEnergy: 9.7e-4 
+      # MinTotalEnergy: 9.7e-4 
+      # 25 PE!! That's the ticket!
+      MinTotalEnergy: 0.0002425
       # 500?
       # MinTotalEnergy: 0.00485
     }
