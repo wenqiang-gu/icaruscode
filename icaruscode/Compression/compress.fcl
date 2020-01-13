@@ -1,0 +1,23 @@
+process_name: comp
+
+physics:
+{
+  producers:
+  {
+    compress: {
+      module_type: ICARUSTPCCompress
+    }
+  }
+  analyzers: {}
+  my_producer_modules: [compress]
+  a: [rootout]
+  end_paths: [a]
+}
+
+source: {}
+outputs: {
+  rootout: {
+    module_type: "RootOutput"
+    fileName: "compressed.root"
+  }
+}
