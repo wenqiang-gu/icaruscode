@@ -44,9 +44,11 @@
 #include "lardata/ArtDataHelper/TrackUtils.h" // lar::util::TrackPitchInView()
 #include "lardata/DetectorInfoServices/LArPropertiesService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
+#include "lardata/DetectorInfoServices/DetectorClocksService.h"
 #include "lardata/Utilities/AssociationUtil.h"
 
 #include "larana/OpticalDetector/SimPhotonCounter.h"
+#include "lardataobj/Simulation/SimChannel.h"
 
 #include "nusimdata/SimulationBase/MCParticle.h"
 #include "nusimdata/SimulationBase/MCTruth.h"
@@ -104,13 +106,20 @@ TTree* opTree;
 TTree* mcTree;
 
 ////////////////////////////////// Variable in tree//////////////////////////////
-
 int event;
 
 int event_type;
 
 int is_Neutrino;
 int Neutrino_Interaction;
+int CCNC;
+
+float true_barycentre_x;
+float true_barycentre_y;
+float true_barycentre_z;
+
+float total_quenched_energy;
+float Neutrino_Energy;
 
 ////////////////////////////////// Variables in OpHit Tree////////////////////////////////// 
 
@@ -133,8 +142,12 @@ double vertex_x;
 double vertex_y;
 double vertex_z;
 double vertex_t;
+double vertex_t_electronics;
 
 float optotal_coll_photons;
+
+float opreco_barycentre_y;
+float opreco_barycentre_z;
 
 ////////////////////////////////// Variables in mcOpHit Tree////////////////////////////////// 
 int mcturned_PMT;
@@ -149,13 +162,15 @@ int mcTPC[nPMTs];
 float mcphotons_collected[nPMTs];
 float mcQE_photons_collected[nPMTs];
 
-
 float mcphoton_time[nPMTs][MaxPhotons];
 float mcfirstphoton_time[nPMTs];
 
 float mctotal_coll_photons;
+
+float mcreco_barycentre_y;
+float mcreco_barycentre_z;
   
-art::InputTag photonLabel;
+////////////////////////////////// Art Variables////////////////////////////////// 
 art::InputTag chargeLabel;
 art::InputTag ophitLabel;
 art::InputTag mcophitLabel;
@@ -167,6 +182,7 @@ art::InputTag typoLabel;
 icarus::PMTOpHits::PMTOpHits(fhicl::ParameterSet const & p)
   :
   EDAnalyzer(p),
+  chargeLabel (p.get<art::InputTag>("charge", "largeant")),
   ophitLabel  (p.get<art::InputTag>("ophit","ophit")),
   mcophitLabel(p.get<art::InputTag>("mcophit","mcophit")),
   typoLabel   (p.get<art::InputTag>("typo","generator"))
@@ -178,18 +194,19 @@ icarus::PMTOpHits::PMTOpHits(fhicl::ParameterSet const & p)
 void icarus::PMTOpHits::analyze(art::Event const & evt)
 {
 	////////////////////////////////// Create the LArsoft services and service handle//////////////////////////////
-
 	art::ServiceHandle<geo::Geometry> geom;
 
 	std::vector<recob::OpHit> const& ophits        = *(evt.getValidHandle<std::vector<recob::OpHit>>(ophitLabel));
 	std::vector<recob::OpHit> const& mchits      = *(evt.getValidHandle<std::vector<recob::OpHit>>(mcophitLabel));
-
+	std::vector<sim::SimChannel> const& charge   = *(evt.getValidHandle<std::vector<sim::SimChannel>>(chargeLabel));
+	
 	////////////////////////////////// Event number//////////////////////////////
-
 	event = evt.id().event();
 
 	std::vector< art::Handle< std::vector<simb::MCTruth> > > type;
 	evt.getManyByType(type);
+	auto const *ts = lar::providerFrom<detinfo::DetectorClocksService>();
+
 
 	for(size_t mcl = 0; mcl < type.size(); ++mcl)
 	{	
@@ -206,15 +223,21 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 	        vertex_z=mct->GetParticle(0).Vz();
 			vertex_t=mct->GetParticle(0).T();
 
+			vertex_t_electronics=ts->G4ToElecTime(vertex_t) * 1.0e3;
+
 			if (event_type==12||event_type==-12||event_type==14||event_type==-14||event_type==16||event_type==-16)
 			{
 				is_Neutrino=1;
 				Neutrino_Interaction=mct->GetNeutrino().InteractionType();
+				CCNC=mct->GetNeutrino().CCNC();
+				Neutrino_Energy=mct->GetNeutrino().Nu().E();
 			}	
 			else
 			{
 				is_Neutrino=0;
-				Neutrino_Interaction=-9999;			
+				Neutrino_Interaction=-9999;
+				CCNC=-9999;	
+				Neutrino_Energy=-9999.;
 			}		
 		}
 	}
@@ -225,14 +248,56 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 	mcturned_PMT=0;
 	mctotal_coll_photons=0;
 
+	opreco_barycentre_y=0;
+	opreco_barycentre_z=0;
+
+	mcreco_barycentre_y=0;
+	mcreco_barycentre_z=0;
+
+	////////////////////////////////// Charge part: identify the baricentre of the event //////////////////////////////
+	for (std::size_t chargechannel = 0;  chargechannel<charge.size(); ++chargechannel) //loop on SimChannel
+	{ 	
+		auto const& channeltdcide = charge.at(chargechannel).TDCIDEMap();
+	
+		for (std::size_t TDCnu = 0;  TDCnu<channeltdcide.size(); ++TDCnu) 	//loop on TDC
+		{
+
+			sim::TDCIDE const& tdcide = channeltdcide.at(TDCnu);
+
+			for (std::size_t IDEnu = 0;  IDEnu<tdcide.second.size(); ++IDEnu) 	//loop on IDE
+			{
+				sim::IDE const& ida = tdcide.second.at(IDEnu);
+
+				true_barycentre_x = true_barycentre_x + ida.x*ida.energy;
+				true_barycentre_y = true_barycentre_y + ida.y*ida.energy;
+				true_barycentre_z = true_barycentre_z + ida.z*ida.energy;
+				total_quenched_energy = total_quenched_energy + ida.energy;
+
+			}	//loop on IDE
+		
+		} 	//loop on TDC
+
+	}//loop on SimChannel
+
+	true_barycentre_x = true_barycentre_x/total_quenched_energy;
+	true_barycentre_y = true_barycentre_y/total_quenched_energy;
+	true_barycentre_z = true_barycentre_z/total_quenched_energy;
+
+	total_quenched_energy = total_quenched_energy;
+
 	for (std::size_t channel = 0; channel < 360; channel++) {
 		
 		////////////////////////////////// Putting at 0 all the variables//////////////////////////////
-		opphotons_collected[channel] = 0;
-		mcphotons_collected[channel] = 0;
+		opphotons_collected[channel] = 0.;
+		mcphotons_collected[channel] = 0.;
 	
 		int op_i = 0;
 		int mc_i = 0;
+
+		for (int i = 0; i < MaxPhotons; i++) {
+			opphoton_time[channel][i] = 0;
+			mcphoton_time[channel][i] = 0;
+		}
 
 		////////////////////////////////// OpHits part //////////////////////////////////////////////////
 		for (recob::OpHit ophit : ophits) {
@@ -240,6 +305,7 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 			std::size_t pmt = ophit.OpChannel();
 
 			if (channel != pmt) {continue;}
+			if (ophit.PE() == 0) {continue;}
 
 			op_i++;
 
@@ -256,16 +322,16 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 
 			// Get the earliest photon time for each channel
 			if (opphotons_collected[channel]>0) {
-				opphoton_time[channel][op_i] = ophit.PeakTime();
-				if (ophit.PeakTime() < opfirstphoton_time[channel]) {
-					opfirstphoton_time[channel] = ophit.PeakTime();
+				opphoton_time[channel][op_i] = ophit.PeakTimeAbs() * 1e3;
+				if (ophit.PeakTimeAbs() * 1e3 < opfirstphoton_time[channel]) {
+					opfirstphoton_time[channel] = ophit.PeakTimeAbs() * 1e3;
 				}
 			}
 		}
 
 		if (opphotons_collected[channel]>0){
 			opturned_PMT++;
-			optotal_coll_photons= optotal_coll_photons + opphotons_collected[channel];
+			optotal_coll_photons = optotal_coll_photons + opphotons_collected[channel];
 		}
 
 		////////////////////////////////// mcOpHits part //////////////////////////////////////////////////
@@ -274,6 +340,9 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 			std::size_t pmt = mchit.OpChannel();
 
 			if (channel != pmt) {continue;}
+			if (mchit.PE() == 0) {continue;}
+
+			mc_i++;
 
 			mcphotons_collected[channel] = mcphotons_collected[channel] + mchit.PE();
 
@@ -282,22 +351,21 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 
 			mcPMTx[channel] = xyz[0];
 			mcPMTy[channel] = xyz[1];
-			mcPMTz[channel] = xyz[2]; 
+			mcPMTz[channel] = xyz[2];
 
 			mcfirstphoton_time[channel] = 100000000;
 
 			// Get the earliest photon time for each channel
 			if (mcphotons_collected[channel]>0) {
-				mcphoton_time[channel][mc_i] = mchit.PeakTime();
-				if (mchit.PeakTime() < mcfirstphoton_time[channel]) {
-					mcfirstphoton_time[channel] = mchit.PeakTime();
+				mcphoton_time[channel][mc_i] = mchit.PeakTimeAbs() * 1e3;
+				if (mchit.PeakTimeAbs() * 1e3 < mcfirstphoton_time[channel]) {
+					mcfirstphoton_time[channel] = mchit.PeakTimeAbs() * 1e3;
 				}
 			}
 		}
 
 		if (mcphotons_collected[channel]>0){
-			mcturned_PMT++;
-			mctotal_coll_photons= mctotal_coll_photons + mcphotons_collected[channel];
+			mctotal_coll_photons = mctotal_coll_photons + mcphotons_collected[channel];
 		}
 
 		// Get PMT position information for each channel
@@ -328,7 +396,19 @@ void icarus::PMTOpHits::analyze(art::Event const & evt)
 		if (mcPMTx[channel]>-200 && mcPMTx[channel]<0){mcTPC[channel]=1;}
 		if (mcPMTx[channel]<200 && mcPMTx[channel]>0){mcTPC[channel]=2;}
 		if (mcPMTx[channel]>200){mcTPC[channel]=3;}
+
+		opreco_barycentre_y = opreco_barycentre_y + opPMTy[channel]*opphotons_collected[channel];
+		opreco_barycentre_z = opreco_barycentre_z + opPMTz[channel]*opphotons_collected[channel];
+
+		mcreco_barycentre_y = mcreco_barycentre_y + mcPMTy[channel]*mcphotons_collected[channel];
+		mcreco_barycentre_z = mcreco_barycentre_z + mcPMTz[channel]*mcphotons_collected[channel];
 	}
+
+	opreco_barycentre_y = opreco_barycentre_y/optotal_coll_photons;
+	opreco_barycentre_z = opreco_barycentre_z/optotal_coll_photons;
+
+	mcreco_barycentre_y = mcreco_barycentre_y/mctotal_coll_photons;
+	mcreco_barycentre_z = mcreco_barycentre_z/mctotal_coll_photons;
 
 	opTree->Fill();
 	std::cout << " finished filling " << "opTree" << std::endl;
@@ -347,7 +427,9 @@ void icarus::PMTOpHits::beginJob()
 	opTree->Branch("event",&event,"event/I");
 	opTree->Branch("event_type",&event_type,"event_type/I");
 	opTree->Branch("is_Neutrino",&is_Neutrino,"is_Neutrino/I");
+	opTree->Branch("CCNC",&CCNC,"CCNC/I");
 	opTree->Branch("Neutrino_Interaction",&Neutrino_Interaction,"Neutrino_Interaction/I");
+	opTree->Branch("Neutrino_Energy",&Neutrino_Energy,"Neutrino_Energy/F");
 	opTree->Branch("Cryostat",&opCryostat,("Cryostat[" + std::to_string(nPMTs) + "]/I").c_str());
 	opTree->Branch("TPC",&opTPC,("TPC[" + std::to_string(nPMTs) + "]/I").c_str());
 	opTree->Branch("PMTx",&opPMTx,("PMTx[" + std::to_string(nPMTs) + "]/D").c_str());
@@ -361,14 +443,21 @@ void icarus::PMTOpHits::beginJob()
 	opTree->Branch("vertex_x",&vertex_x,"vertex_x/D");
 	opTree->Branch("vertex_y",&vertex_y,"vertex_y/D");
 	opTree->Branch("vertex_z",&vertex_z,"vertex_z/D");
-	opTree->Branch("vertex_t",&vertex_t,"vertex_t/D");
+	opTree->Branch("vertex_t",&vertex_t_electronics,"vertex_t/D");
+	opTree->Branch("true_barycentre_x",&true_barycentre_x,"true_barycentre_x/F");
+	opTree->Branch("true_barycentre_y",&true_barycentre_y,"true_barycentre_y/F");
+	opTree->Branch("true_barycentre_z",&true_barycentre_z,"true_barycentre_z/F");
+	opTree->Branch("reco_barycentre_y",&opreco_barycentre_y,"reco_barycentre_y/F");
+	opTree->Branch("reco_barycentre_z",&opreco_barycentre_z,"reco_barycentre_z/F");
 
 	mcTree = tfs->make<TTree>("mcophittree","tree for the mcophit response");
 
 	mcTree->Branch("event",&event,"event/I");
 	mcTree->Branch("event_type",&event_type,"event_type/I");
 	mcTree->Branch("is_Neutrino",&is_Neutrino,"is_Neutrino/I");
+	mcTree->Branch("CCNC",&CCNC,"CCNC/I");
 	mcTree->Branch("Neutrino_Interaction",&Neutrino_Interaction,"Neutrino_Interaction/I");
+	mcTree->Branch("Neutrino_Energy",&Neutrino_Energy,"Neutrino_Energy/F");
 	mcTree->Branch("Cryostat",&mcCryostat,("Cryostat[" + std::to_string(nPMTs) + "]/I").c_str());
 	mcTree->Branch("TPC",&mcTPC,("TPC[" + std::to_string(nPMTs) + "]/I").c_str());
 	mcTree->Branch("PMTx",&mcPMTx,("PMTx[" + std::to_string(nPMTs) + "]/D").c_str());
@@ -382,7 +471,12 @@ void icarus::PMTOpHits::beginJob()
 	mcTree->Branch("vertex_x",&vertex_x,"vertex_x/D");
 	mcTree->Branch("vertex_y",&vertex_y,"vertex_y/D");
 	mcTree->Branch("vertex_z",&vertex_z,"vertex_z/D");
-	mcTree->Branch("vertex_t",&vertex_t,"vertex_t/D");
+	mcTree->Branch("vertex_t",&vertex_t_electronics,"vertex_t/D");
+	mcTree->Branch("true_barycentre_x",&true_barycentre_x,"true_barycentre_x/F");
+	mcTree->Branch("true_barycentre_y",&true_barycentre_y,"true_barycentre_y/F");
+	mcTree->Branch("true_barycentre_z",&true_barycentre_z,"true_barycentre_z/F");
+	mcTree->Branch("reco_barycentre_y",&mcreco_barycentre_y,"reco_barycentre_y/F");
+	mcTree->Branch("reco_barycentre_z",&mcreco_barycentre_z,"reco_barycentre_z/F");
 }
 
 DEFINE_ART_MODULE(icarus::PMTOpHits)
