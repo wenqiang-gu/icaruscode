@@ -1,23 +1,37 @@
-
+#include "icarus_spe.fcl"
 BEGIN_PROLOG
 FakePhotoS: {
     module_type: "FakePhotoS"
-    Channels: [0,10,20,30,40,50,60,70,80,100,200,300]
-    PEs: [1,2,3,4,5,4,3,2,1,10,10,10]
+    Channels: []
+    MinPE: 1
+    MaxPE: 10
     Frequency: 1
-    Duration:  1
-    G4TStart:  0.
+    Duration:  999.5
+    G4TStart:  -1000000.
+}
+
+FakeFlash: {
+    module_type: "FakeFlash"
+    Verbose: false
+    MinPhotons: 24000
+    MaxPhotons: 2400000
+    TPCList: [0]
+    Frequency: 0.1
+    Duration: 2000
+    G4TStart: -1000000
 }
 
 ICARUSMCOpHit: {
     module_type: "ICARUSMCOpHit"
-    MergePeriod: 30
-    SimPhotonsProducer: "largeant"
+    MergePeriod: 0.01
+    SimPhotonsProducer: "opdaq"
+    SPEArea: @local::SPE.Area
+    SPEAmplitude: @local::SPE.Amplitude
 }
 
 ICARUSMCOpFlash: {
     module_type: "ICARUSMCOpFlash"
-    StoreEmptyFlash: false
+    StoreEmptyFlash: true
     MCTruthProducer: "generator"
     OpHitProducer:   "mcophit"
     MergePeriod: 8
@@ -51,13 +65,31 @@ ICARUSCheatOpFlashTPC2.OpChannelRange: [180,269]
 ICARUSCheatOpFlashTPC3: @local::ICARUSCheatOpFlash
 ICARUSCheatOpFlashTPC3.OpChannelRange: [270,359]
 
-ICARUSOpRecoAna: {
-    module_type:    "ICARUSOpRecoAna"
-    OutputFileName: "oprecoana.root"
+ICARUSOpHitAna: {
+    module_type:       "ICARUSOpHitAna"
+    OutputFileName:    "ophitana.root"
     OpHitProducerList: ["ophit"]
-    OpFlashProducerList: ["opflashTPC0"]
-    OpDetWaveformProducerList: ["opdaq"]
-    SimEnergyDepositProducer: "largeant:TPCActive"
+    MCOpHitProducer:   "mcophit"
+    OpDetWaveformProducer: ""
+    MatchTimeStart: 0.100
+    MatchTimeEnd:   0.130
+}
+
+ICARUSOpFlashAna: {
+    module_type: "ICARUSOpFlashAna"
+    OutputFileName: "opflashana.root"
+    MCOpFlashProducer: "mcflash"
+		MCTruthProducer: "generator"
+    OpFlashProducerList: ["cheatflash"]
+    MatchTimeStart: -1.0
+    MatchTimeEnd:    1.0
+}
+
+ICARUSParticleAna: {
+		module_type: "ICARUSParticleAna"
+		OutputFileName: "particleana.root"
+		ParticleProducer: "largeant"
+		TrajectoryProducer: "largeant"
 }
 
 END_PROLOG

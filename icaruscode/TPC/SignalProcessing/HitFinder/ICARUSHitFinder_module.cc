@@ -241,7 +241,7 @@ double                fChi2NDF;                  ///maximum Chisquared / NDF all
     //LET HITCOLLECTIONCREATOR DECLARE THAT WE ARE GOING TO PRODUCE
     //HITS AND ASSOCIATIONS TO RAW DIGITS BUT NOT ASSOCIATIONS TO WIRES
     //(WITH NO PARTICULAR PRODUCT LABEL).
-    recob::HitCollectionCreator::declare_products(*this, 
+    recob::HitCollectionCreator::declare_products(producesCollector(),
         /*instance_name*/"");
   }
 
@@ -339,7 +339,7 @@ double                fChi2NDF;                  ///maximum Chisquared / NDF all
       // and its associations to wires and raw digits
       
       // Handle the filtered hits collection...
-      recob::HitCollectionCreator  hcol(*this, evt);
+      recob::HitCollectionCreator  hcol(evt);
 
       //    if (fAllHitsInstanceName != "") filteredHitCol = &hcol;
       
@@ -526,7 +526,10 @@ size_t iWire=wid.Wire;
           
     std::vector<geo::WireID> wids = geom->ChannelToWire(channel);
           
-          fHitFinderTool->findHitCandidates(holder, 0,channel,0,hitCandidateVec);
+          std::vector<float> tempVec = holder;
+          recob::Wire::RegionsOfInterest_t::datarange_t rangeData(size_t(0),std::move(tempVec));
+          
+          fHitFinderTool->findHitCandidates(rangeData, 0,channel,0,hitCandidateVec);
           //int jc=0;
           for(auto& hitCand : hitCandidateVec) {
             expandHit(hitCand,holder,hitCandidateVec);
@@ -535,7 +538,7 @@ size_t iWire=wid.Wire;
           
           
           
-          fHitFinderTool->MergeHitCandidates(holder, hitCandidateVec, mergedCandidateHitVec);          
+          fHitFinderTool->MergeHitCandidates(rangeData, hitCandidateVec, mergedCandidateHitVec);
 
       //numHits = hits.size();
           int nghC=0;
@@ -987,7 +990,6 @@ void ICARUSHitFinder::expandHit(reco_tool::ICandidateHitFinder::HitCandidate& h,
         float samples1[bigw];   //list to contain samples bellow the startTick
         float samples2[bigw];   //list to contain samples above the stopTick
         
-        reco_tool::ICandidateHitFinder::MergeHitCandidateVec::iterator hiter;
         reco_tool::ICandidateHitFinder::MergeHitCandidateVec hlist;
 
         float min1;
