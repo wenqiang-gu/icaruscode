@@ -49,9 +49,30 @@ icarus_simwire_wirecell:
             # Scaling Parameters from int and coh noise components
 	    int_noise_scale: 1.0
 	    coh_noise_scale: 1.09
+            cryo_number: -1
         }
     }
 }
 
+icarus_simwire_wirecell_EE:	@local::icarus_simwire_wirecell
+icarus_simwire_wirecell_EE.wcls_main.structs.cryo_number:		0
+icarus_simwire_wirecell_EE.wcls_main.configs: ["pgrapher/experiment/icarus/wcls-pertpc-sim-drift-simchannel.jsonnet"]
+icarus_simwire_wirecell_EE.wcls_main.outputers: ["wclsSimChannelSink:postdrift0", "wclsFrameSaver:simdigits0"]
+
+
+icarus_simwire_wirecell_EW:	@local::icarus_simwire_wirecell
+icarus_simwire_wirecell_EW.wcls_main.structs.cryo_number:		1
+icarus_simwire_wirecell_EW.wcls_main.configs: ["pgrapher/experiment/icarus/wcls-pertpc-sim-drift-simchannel.jsonnet"]
+icarus_simwire_wirecell_EW.wcls_main.outputers: ["wclsSimChannelSink:postdrift1", "wclsFrameSaver:simdigits1"]
+
+icarus_simwire_wirecell_WE:	@local::icarus_simwire_wirecell
+icarus_simwire_wirecell_WE.wcls_main.structs.cryo_number:		2
+icarus_simwire_wirecell_WE.wcls_main.configs: ["pgrapher/experiment/icarus/wcls-pertpc-sim-drift-simchannel.jsonnet"]
+icarus_simwire_wirecell_WE.wcls_main.outputers: ["wclsSimChannelSink:postdrift2", "wclsFrameSaver:simdigits2"]
+
+icarus_simwire_wirecell_WW:	@local::icarus_simwire_wirecell
+icarus_simwire_wirecell_WW.wcls_main.structs.cryo_number:		3
+icarus_simwire_wirecell_WW.wcls_main.configs: ["pgrapher/experiment/icarus/wcls-pertpc-sim-drift-simchannel.jsonnet"]
+icarus_simwire_wirecell_WW.wcls_main.outputers: ["wclsSimChannelSink:postdrift3", "wclsFrameSaver:simdigits3"]
 
 END_PROLOG

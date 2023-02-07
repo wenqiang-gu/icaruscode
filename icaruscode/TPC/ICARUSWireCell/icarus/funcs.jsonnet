@@ -81,6 +81,52 @@ local g = import 'pgraph.jsonnet';
                       name=name),
     }.ret,
 
+    // A fan summer for a single TPC (two splits)
+    minifansummer :: function(fout, sigpipes, summer, actpipe, cryo_number, fin, name="minifansummer", outtags=[], tag_rules=[]) {
+
+        local fanoutmult = std.length(sigpipes),
+        local faninmult = 1,
+
+        local fanout = g.pnode({
+            type: fout,
+            name: name,
+            data: {
+                multiplicity: fanoutmult,
+                tag_rules: tag_rules,
+            },
+        }, nin=1, nout=fanoutmult),
+
+
+        local fanin = g.pnode({
+            type: fin,
+            name: name,
+            data: {
+                multiplicity: faninmult,
+                tags: outtags,
+            },
+        }, nin=faninmult, nout=1),
+
+        local reducer = g.intern(innodes=sigpipes,
+                                 outnodes=[actpipe],
+                                 centernodes=[summer],
+                                 edges= 
+                                 // connecting signal and summer
+                                 [g.edge(sigpipes[0], summer,0,0)]
+                                 + [g.edge(sigpipes[1], summer,0,1)]
+                                 // connecting summer and the operator pipelines
+                                 + [g.edge(summer, actpipe)],
+                                 name=name),
+
+        ret: g.intern(innodes=[fanout],
+                      outnodes=[fanin],
+                      centernodes=[reducer],
+                      edges=
+                      [g.edge(fanout, sigpipes[n], n, 0) for n in std.range(0, fanoutmult-1)] +
+                      [g.edge(reducer, fanin, n, n) for n in std.range(0, faninmult-1)],
+                      name=name),
+    }.ret,
+
+
   // Build a fanout-[pipelines]-fanin graph.  pipelines is a list of
   // pnode objects, one for each spine of the fan.
   fanpipe:: function(fout, pipelines, fin, name='fanpipe', outtags=[], fout_tag_rules=[], fin_tag_rules=[]) {
